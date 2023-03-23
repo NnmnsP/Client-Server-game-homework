@@ -11,9 +11,7 @@ def prepare_image(file_name, scale, angle):
     img = pygame.image.load(file_name)
     img.convert()
     img = pygame.transform.rotozoom(img, angle, scale)
-
     img.set_colorkey("black")
-
     return img
 
 class Console:
@@ -61,13 +59,14 @@ class Console:
         pass
 
 class Player:
-    def __init__(self, screen, image_files, scale, angle):
+    def __init__(self, screen, images, scale, angle):
         self.x = 0
         self.y = 0
 
         self.screen_width = screen.get_width()
         self.screen_height = screen.get_height()
         self.screen = screen
+        
 
         self.width = 50
         self.height = 50
@@ -75,20 +74,22 @@ class Player:
         self.speed_x = 0
         self.speed_y = 0
         self.acceleration = 0.1
-
-        self.image_index = 0
-
+        
+        self.image_inde = 0
+        
         self.images = []
-        for file_name in image_files:
+        for file_name in images:
             self.images.append(prepare_image(file_name, scale, angle))
-
-        self.image = self.images[self.image_index]
+            
+        self.image = self.images[self.image_inde]
         self.rect = self.image.get_rect()
-
+        
     def draw(self):
-        self.screen.blit(self.image, self.rect)
-
-        # pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
+        # Draw the image
+        self.screen.blit(self.image, (self.x, self.y))
+        
+        
+       # pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
 
     def update(self):
         self.x += self.speed_x
@@ -113,14 +114,12 @@ class Player:
             self.speed_y -= self.acceleration * 0.5
         elif self.speed_y < 0:
             self.speed_y += self.acceleration * 0.5
-
-        self.image_index += 1
-        self.image_index %= len(self.images)
-
-        self.image = self.images[self.image_index]
-
+            
         self.rect.x = self.x
         self.rect.y = self.y
+        
+        self.image_inde = (self.image_inde + 1) % len(self.images)
+        self.image = self.images[self.image_inde]
 
 
     def move(self, direction):
@@ -134,57 +133,8 @@ class Player:
             self.speed_x += self.acceleration
 
 
-class Bullet:
-    def __init__(self, screen, image_files, scale, angle):
-        self.x = 0
-        self.y = 0
-
-        self.screen_width = screen.get_width()
-        self.screen_height = screen.get_height()
-        self.screen = screen
-
-        self.width = 10
-        self.height = 10
-        self.color = "red"
-        self.speed_x = 0
-        self.speed_y = 0
-
-        self.is_active = True
-
-        self.image_index = 0
-
-        self.images = []
-        for file_name in image_files:
-            self.images.append(prepare_image(file_name, scale, angle))
-
-        self.image = self.images[self.image_index]
-        self.rect = self.image.get_rect()
-
-    def draw(self):
-        if not self.is_active:
-            return
-
-        pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
-
-    def update(self):
-
-        self.x += self.speed_x
-        self.y += self.speed_y
-
-        if self.x < 0 or self.x > self.screen_width or self.y < 0 or self.y > self.screen_height:
-            self.is_active = False
-            return
-
-        self.image_index += 1
-        self.image_index %= len(self.images)
-
-        self.image = self.images[self.image_index]
-
-        self.rect.x = self.x
-        self.rect.y = self.y
-
-
-player = Player(screen, ["images/ship1.png", "images/ship2.png", "images/ship3.png"], 0.25, 0)
+player1 = Player(screen, ['images/e-ship1.png', 'images/e-ship2.png', 'images/e-ship3.png'], 0.25, 0)
+player2 = Player(screen, ['images/ship1.png', 'images/ship2.png', 'images/ship3.png'], 0.25, 0)
 console = Console(screen)
 
 down_key = False
@@ -192,7 +142,10 @@ up_key = False
 left_key = False
 right_key = False
 
-bullets = []
+s_key = False
+w_key = False
+a_key = False
+d_key = False
 
 while running:
     # poll for events
@@ -209,13 +162,14 @@ while running:
                 left_key = True
             elif event.key == pygame.K_RIGHT:
                 right_key = True
-            elif event.key == pygame.K_SPACE:
-                bullet = Bullet(screen, ['images/bullet.png'], 0.25, 0)
-                bullet.x = player.x + player.width / 2 - bullet.width / 2
-                bullet.y = player.y + player.height / 2 - bullet.height / 2
-                bullet.speed_y = -1
-                bullets.append(bullet)
-
+            elif event.key == pygame.K_w:
+                w_key = True
+            elif event.key == pygame.K_s:
+                s_key = True
+            elif event.key == pygame.K_a:
+                a_key = True
+            elif event.key == pygame.K_d:
+                d_key = True
             elif event.key == pygame.K_c:
                 if console.visible:
                     console.hide()
@@ -231,33 +185,45 @@ while running:
                 left_key = False
             elif event.key == pygame.K_RIGHT:
                 right_key = False
+            elif event.key == pygame.K_w:
+                w_key = False
+            elif event.key == pygame.K_s:
+                s_key = False
+            elif event.key == pygame.K_a:
+                a_key = False
+            elif event.key == pygame.K_d:
+                d_key = False
 
+    # update player1 position and movement
     if up_key:
-        player.move("up")
+        player1.move("up")
     if down_key:
-        player.move("down")
+        player1.move("down")
     if left_key:
-        player.move("left")
+        player1.move("left")
     if right_key:
-        player.move("right")
+        player1.move("right")
+    player1.update()
 
-    # fill the screen with a color to wipe away anything from last frame
+    # update player2 position and movement
+    if w_key:
+        player2.move("up")
+    if s_key:
+        player2.move("down")
+    if a_key:
+        player2.move("left")
+    if d_key:
+        player2.move("right")
+    player2.update()
+    
     screen.fill("black")
+    
+    # draw both players to the screen
+    player1.draw()
+    player2.draw()
 
-    player.update()
-    player.draw()
-
-    # remove inactive bullets
-    for bullet in bullets:
-        bullet.update()
-        bullet.draw()
-
-    # remove inactive bullets - probably want to do this in a better way
-    for bullet in bullets:
-        if not bullet.is_active:
-            bullets.remove(bullet)
-
-    console.log(f"Player x: {int(player.x)}, y: {int(player.y)}; Speed x: {int(player.speed_x)}, Speed y: {int(player.speed_y)}")
+    console.log(f"Player1 x: {int(player1.x)}, y: {int(player1.y)}; Speed x: {int(player1.speed_x)}, Speed y: {int(player1.speed_y)}")
+    console.log(f"Player2 x: {int(player2.x)}, y: {int(player2.y)}; Speed x: {int(player2.speed_x)}, Speed y: {int(player2.speed_y)}")
     console.draw()
 
     # flip() the display to put your work on screen
