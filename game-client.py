@@ -144,7 +144,7 @@ async def receive_events(player, other_players, reader):
         # await asyncio.sleep(0.05)
 
 async def data_exchange(player, eventsData, other_players):
-    reader, writer = await asyncio.open_connection('localhost', 8888)
+    reader, writer = await asyncio.open_connection('13.212.191.97', 8888)
 
     initial_data = await reader.readline()
     logging.info(f"initial data received: {initial_data.decode()}")
