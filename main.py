@@ -59,7 +59,7 @@ class Console:
         pass
 
 class Player:
-    def __init__(self, screen, images, scale, angle):
+    def __init__(self, screen, images_files, scale, angle):
         self.x = 0
         self.y = 0
 
@@ -75,18 +75,18 @@ class Player:
         self.speed_y = 0
         self.acceleration = 0.1
         
-        self.image_inde = 0
+        self.image_index = 0
         
         self.images = []
-        for file_name in images:
+        for file_name in images_files:
             self.images.append(prepare_image(file_name, scale, angle))
             
-        self.image = self.images[self.image_inde]
+        self.image = self.images[self.image_index]
         self.rect = self.image.get_rect()
         
     def draw(self):
         # Draw the image
-        self.screen.blit(self.image, (self.x, self.y))
+        self.screen.blit(self.image, self.rect)
         
         
        # pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
@@ -114,12 +114,15 @@ class Player:
             self.speed_y -= self.acceleration * 0.5
         elif self.speed_y < 0:
             self.speed_y += self.acceleration * 0.5
-            
+        
+        self.image_index += 1
+        self.image_index %= len(self.images)
+
+        self.image = self.images[self.image_index]
+        
         self.rect.x = self.x
         self.rect.y = self.y
-        
-        self.image_inde = (self.image_inde + 1) % len(self.images)
-        self.image = self.images[self.image_inde]
+    
 
 
     def move(self, direction):
@@ -131,6 +134,55 @@ class Player:
             self.speed_x += -self.acceleration
         elif direction == "right":
             self.speed_x += self.acceleration
+
+class Bullet:
+    def __init__(self, screen, image_files, scale, angle):
+        self.x = 0
+        self.y = 0
+
+        self.screen_width = screen.get_width()
+        self.screen_height = screen.get_height()
+        self.screen = screen
+
+        self.width = 10
+        self.height = 10
+        self.color = "red"
+        self.speed_x = 0
+        self.speed_y = 0
+
+        self.is_active = True
+
+        self.image_index = 0
+
+        self.images = []
+        for file_name in image_files:
+            self.images.append(prepare_image(file_name, scale, angle))
+
+        self.image = self.images[self.image_index]
+        self.rect = self.image.get_rect()
+
+    def draw(self):
+        if not self.is_active:
+            return
+
+        pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
+
+    def update(self):
+
+        self.x += self.speed_x
+        self.y += self.speed_y
+
+        if self.x < 0 or self.x > self.screen_width or self.y < 0 or self.y > self.screen_height:
+            self.is_active = False
+            return
+
+        self.image_index += 1
+        self.image_index %= len(self.images)
+
+        self.image = self.images[self.image_index]
+
+        self.rect.x = self.x
+        self.rect.y = self.y
 
 
 player1 = Player(screen, ['images/e-ship1.png', 'images/e-ship2.png', 'images/e-ship3.png'], 0.25, 0)
@@ -146,6 +198,8 @@ s_key = False
 w_key = False
 a_key = False
 d_key = False
+
+bullets = []
 
 while running:
     # poll for events
@@ -170,6 +224,18 @@ while running:
                 a_key = True
             elif event.key == pygame.K_d:
                 d_key = True
+            elif event.key == pygame.K_SPACE:
+                bullet = Bullet(screen, ['images/bullet.png'], 0.25, 0)
+                bullet.x = player1.x + player1.width / 2 - bullet.width / 2
+                bullet.y = player1.y + player1.height / 2 - bullet.height / 2
+                bullet.speed_y = -1
+                bullets.append(bullet)
+            elif event.key == pygame.K_q:
+                bullet = Bullet(screen, ['images/bullet.png'], 0.25, 0)
+                bullet.x = player2.x + player2.width / 2 - bullet.width / 2
+                bullet.y = player2.y + player2.height / 2 - bullet.height / 2
+                bullet.speed_y = -1
+                bullets.append(bullet)
             elif event.key == pygame.K_c:
                 if console.visible:
                     console.hide()
@@ -221,6 +287,15 @@ while running:
     # draw both players to the screen
     player1.draw()
     player2.draw()
+    
+    for bullet in bullets:
+        bullet.update()
+        bullet.draw()
+
+    # remove inactive bullets - probably want to do this in a better way
+    for bullet in bullets:
+        if not bullet.is_active:
+            bullets.remove(bullet)
 
     console.log(f"Player1 x: {int(player1.x)}, y: {int(player1.y)}; Speed x: {int(player1.speed_x)}, Speed y: {int(player1.speed_y)}")
     console.log(f"Player2 x: {int(player2.x)}, y: {int(player2.y)}; Speed x: {int(player2.speed_x)}, Speed y: {int(player2.speed_y)}")
