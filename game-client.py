@@ -70,6 +70,7 @@ class Player:
         self.x = 0
         self.y = 0
         self.id = None
+        self.hit_points = 5
 
         self.screen = screen
 
@@ -94,6 +95,24 @@ class Player:
         self.rect.x = self.x
         self.rect.y = self.y
 
+class Bullet:
+    def __init__(self, screen, color, id):
+        self.x = 0
+        self.y = 0
+
+        self.screen_width = screen.get_width()
+        self.screen_height = screen.get_height()
+        self.screen = screen
+        self.id = id
+        self.width = 10
+        self.height = 10
+        self.color = color
+
+        self.image_index = 0
+
+    def draw(self):
+        pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
+
 @dataclass
 class EventsData:
     down_key: bool
@@ -109,8 +128,6 @@ async def send_events(eventsData, writer):
         fire = 1 if eventsData.fire_key else 0
 
         message = f"{move_x},{move_y},{fire}\n"
-        # fake send data
-        # await asyncio.sleep(1)
 
         writer.write(message.encode())
         await writer.drain()
@@ -118,52 +135,94 @@ async def send_events(eventsData, writer):
 
         logging.info(f"send_events coroutine: sent {message}")
 
-async def receive_events(player, other_players, reader):
+async def receive_events(player, other_players, bullets, reader):
     while running:
-        # fake_data = "0,50,200,1,400,600,2,25,550".encode()
         message = await reader.readline()
 
-        # fake receive data
-        # await asyncio.sleep(1)
-        # message = fake_data
-
         logging.info(f"message received: {message.decode()}")
-        data_parts=message.decode().split(",")
-        other_players.clear()
+        message = message.decode().strip()
+        players_list, bullets_list = message.split(":") if ":" in message else (message, None)
 
-        for i in range(0, len(data_parts), 3):
-            player_id = int(data_parts[i])
-            if player_id == player.id:
-                player.x = float(data_parts[i+1])
-                player.y = float(data_parts[i+2])
-            else:
+        players_list = players_list.split(",")
+
+        bullets_list = bullets_list.split(",") if bullets_list is not None else []
+        
+        ids = []
+        for i in range(0, len(players_list), 4):
+            if players_list[i] == "":
+                continue
+            player_id = int(players_list[i])
+            while len(other_players) <= player_id :
                 other_players.append(Player(screen, ["images/e-ship1.png", "images/e-ship2.png", "images/e-ship3.png"], 0.25, 0))
-                other_players[-1].x = float(data_parts[i+1])
-                other_players[-1].y = float(data_parts[i+2])
+                print(f"adding player {player_id}")
+            ids.append(player_id)
 
-        # await asyncio.sleep(0.05)
+        for i in range(0, len(players_list), 4):
+            if players_list[i] == "":
+                continue
+            player_id = int(players_list[i])
+            if player_id == player.id:
+                player.x = float(players_list[i+1])
+                player.y = float(players_list[i+2])
+                player.hit_points = int(players_list[i+3])
+            else:
+                other_players[player_id].x = float(players_list[i+1])
+                other_players[player_id].y = float(players_list[i+2])
+                other_players[player_id].id = player_id
 
-async def data_exchange(player, eventsData, other_players):
-    reader, writer = await asyncio.open_connection('13.212.191.97', 8888)
+        # remove players that are not in the list
+        for player_o in other_players:
+            if player_o.id not in ids and player_o.id != None:
+                print(f"removing player {player_o.id}")
+                other_players.remove(player_o)
+
+        ids = []
+
+        for i in range(0, len(bullets_list), 4):
+            if bullets_list[i] == "":
+                continue
+            bullet_id = int(bullets_list[i])
+            while len(bullets) <= bullet_id:
+                bullets.append(Bullet(screen, 'red', bullet_id))
+            ids.append(bullet_id)
+
+        for i in range(0, len(bullets_list), 4):
+            if bullets_list[i] == "":
+                continue
+            bullet_id = int(bullets_list[i])
+            bullet_player_id = int(bullets_list[i+1])
+            if bullet_player_id == player.id:
+                bullets[bullet_id].color = 'green'
+            bullets[bullet_id].x = float(bullets_list[i+2])
+            bullets[bullet_id].y = float(bullets_list[i+3])
+            bullets[bullet_id].id = bullet_id
+
+        for bullet in bullets:
+            if bullet.id not in ids and bullet.id != None:
+                bullets.remove(bullet)
+
+async def data_exchange(player, eventsData, other_players, bullets):
+    reader, writer = await asyncio.open_connection('localhost', 8888)
 
     initial_data = await reader.readline()
     logging.info(f"initial data received: {initial_data.decode()}")
     data_parts=initial_data.decode().split(":")
     player.id = int(data_parts[1])
+    print(f"player id: {player.id}")
 
     send_events_task = asyncio.create_task(send_events(eventsData, writer))
-    receive_events_task = asyncio.create_task(receive_events(player, other_players, reader))
+    receive_events_task = asyncio.create_task(receive_events(player, other_players, bullets, reader))
 
     await asyncio.gather(send_events_task, receive_events_task)
 
     print("data_exchange coroutine finished")
 
-def data_exchange_thread_func(player, eventsData, other_players):
+def data_exchange_thread_func(player, eventsData, other_players, bullets):
     global running
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(data_exchange(player, eventsData, other_players))
+    loop.run_until_complete(data_exchange(player, eventsData, other_players, bullets))
 
     loop.close()
 
@@ -171,6 +230,8 @@ def data_exchange_thread_func(player, eventsData, other_players):
 
 def main():
     global running
+
+    bullets = []
 
     other_players = []
 
@@ -180,12 +241,10 @@ def main():
     eventsData = EventsData(False, False, False, False, False)
 
     # create data exchange thread
-    data_exchange_thread = threading.Thread(target=data_exchange_thread_func, args=(player, eventsData, other_players))
+    data_exchange_thread = threading.Thread(target=data_exchange_thread_func, args=(player, eventsData, other_players, bullets))
     data_exchange_thread.start()
 
     while running:
-        # poll for events
-        # pygame.QUIT event means the user clicked X to close your window
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -225,14 +284,20 @@ def main():
 
         # draw other players
         for other_player in other_players:
-            other_player.update()
-            other_player.draw()
+            if other_player.id is not None:
+                other_player.update()
+                other_player.draw()
 
         if player.id is not None:
             player.update()
             player.draw()
 
-        console.log(f"Player x: {int(player.x)}, y: {int(player.y)}")
+        # draw bullets
+        for bullet in bullets:
+            bullet.draw()
+
+        console.log(f"Player x: {int(player.x)}, y: {int(player.y)}\n \
+                    Player hitpoints: {player.hit_points}\n")
         console.draw()
 
         # flip() the display to put your work on screen
